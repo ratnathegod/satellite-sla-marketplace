@@ -47,6 +47,11 @@ deploy-local:
 	@echo "This is a placeholder - implement actual deployment script"
 	@cd contracts && forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast
 
+# Export contract ABIs to web package
+export-abi:
+	@echo "📦 Exporting contract ABIs to web package..."
+	@cd contracts && ./export-abi.sh
+
 # Clean up development environment
 clean:
 	@echo "🧹 Cleaning up..."
