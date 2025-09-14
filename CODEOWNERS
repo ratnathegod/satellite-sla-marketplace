@@ -1,0 +1,20 @@
+# Global ownership
+* @ratnathegod
+
+# Contracts
+/contracts/ @ratnathegod
+
+# Verifier service
+/verifier/ @ratnathegod
+
+# Web application
+/web/ @ratnathegod
+
+# Infrastructure
+/infra/ @ratnathegod
+/.github/ @ratnathegod
+
+# Documentation
+/README.md @ratnathegod
+/SECURITY.md @ratnathegod
+/CONTRIBUTING.md @ratnathegod

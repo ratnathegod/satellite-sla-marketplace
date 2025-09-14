@@ -1,0 +1,25 @@
+{
+  "name": "satellite-tasking-marketplace",
+  "version": "0.1.0",
+  "description": "Satellite Tasking Marketplace with Verifiable SLAs",
+  "private": true,
+  "scripts": {
+    "dev": "make dev",
+    "test": "make test",
+    "clean": "make clean"
+  },
+  "keywords": [
+    "satellite",
+    "blockchain",
+    "marketplace",
+    "sla",
+    "ethereum"
+  ],
+  "author": "Ratnakaru Yalagathala",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
