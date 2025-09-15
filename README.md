@@ -1,9 +1,9 @@
-# 🚀 Satellite Tasking Marketplace (Verifiable SLAs)
+# Satellite Tasking Marketplace (Verifiable SLAs)
 
 On-chain marketplace for satellite imaging/capture tasks with **verifiable service-level agreements (SLAs)**.  
 Includes escrow, operator bonding, dispute resolution, IPFS storage, and a verifier service with extensible proof hooks.
 
-## ✨ Features
+## Features
 - **Smart Contracts (Foundry):** Escrow lifecycle (create → fund → accept → submit proof → release/dispute).
 - **Web App (Next.js 14 + viem + RainbowKit):** Wallet-connected UI for task creation, funding, acceptance, proof submission, and release/dispute.
 - **Verifier (Go):** `/verifyProof` stub (extensible to EAS or zk-proofs). Health check on `/healthz`.
@@ -13,7 +13,7 @@ Includes escrow, operator bonding, dispute resolution, IPFS storage, and a verif
 
 ---
 
-## 🛠 Prerequisites
+## Prerequisites
 Install locally:
 - [Node.js 20.x](https://nodejs.org) + [pnpm](https://pnpm.io)  
   ```bash
@@ -29,7 +29,7 @@ Install locally:
 
 ---
 
-## ⚡ Quickstart
+## Quickstart
 
 ```bash
 # install deps
@@ -52,7 +52,7 @@ Open the app: **http://localhost:3000**
 
 ---
 
-## 🔑 Environment
+## Environment
 
 Create `web/.env.local`:
 
@@ -66,7 +66,7 @@ NEXT_PUBLIC_IPFS_GATEWAY=http://localhost:8080
 
 ---
 
-## 🎮 Demo Flow
+## Demo Flow
 
 1. **Mint & Approve Tokens**
    - Go to `/dev` → Mint TEST → Approve Escrow.
@@ -88,7 +88,7 @@ NEXT_PUBLIC_IPFS_GATEWAY=http://localhost:8080
 
 ---
 
-## 🧪 Testing
+## Testing
 
 - **Contracts:**  
   ```bash
@@ -110,7 +110,7 @@ make test
 
 ---
 
-## 🧰 Project Structure
+## Project Structure
 ```
 contracts/    Solidity contracts + Foundry tests
 web/          Next.js dApp + RainbowKit + viem
@@ -122,7 +122,7 @@ Makefile      Dev/test/deploy helpers
 
 ---
 
-## ✅ CI/CD
+## CI/CD
 GitHub Actions (`.github/workflows/ci.yml`) runs on each PR:
 - `forge test` (contracts)
 - `go test ./...` (verifier)
@@ -130,15 +130,10 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on each PR:
 
 ---
 
-## 📌 Roadmap
+## Roadmap
 - [ ] SLA verification with Ethereum Attestation Service (EAS)
 - [ ] Operator reputation + slashing logic
 - [ ] End-to-end Playwright smoke tests
 - [ ] Security audit + fuzzing (Echidna, Slither)
 
 ---
-
-## 📜 License
-MIT — see [LICENSE](LICENSE) for details.
-
-For questions or support, please create an issue or reach out to the maintainers.
