@@ -1,273 +1,342 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
+import { formatEther } from 'viem'
+import { useParams } from 'next/navigation'
 import { Header } from '@/components/Header'
-import { useEffect, useState } from 'react'
-import { getEscrowContract, loadContractAddress, TaskStatus, type TaskStatusType } from '@/lib/viem'
-import { Address } from '@/components/Address'
-import { StatusBadge } from '@/components/StatusBadge'
-import type { Address as AddressType } from 'viem'
+import { TxButton } from '@/components/TxButton'
+import { FileDrop } from '@/components/FileDrop'
+import { getEscrowContract } from '@/lib/contracts'
+import { getIPFSUrl, addFile } from '@/lib/ipfs'
 
-interface TaskPageProps {
-  params: {
-    id: string
+interface Task {
+  id: string
+  requester: string
+  operator: string
+  metadataCid: string
+  budget: bigint
+  deadline: bigint
+  status: number
+  proofCid?: string
+  metadata?: {
+    title: string
+    description: string
+    coordinates?: {
+      latitude: number
+      longitude: number
+    }
+    createdAt: string
   }
 }
 
-interface TaskData {
-  id: bigint
-  customer: AddressType
-  operator: AddressType
-  paymentToken: AddressType
-  amount: bigint
-  deadline: bigint
-  proofDeadline: bigint
-  status: TaskStatusType
-  ipfsHash: string
-  proofHash: string
-  loading: boolean
-  error: string | null
-  exists: boolean
+const TaskStatus = {
+  0: 'Open',
+  1: 'Accepted',
+  2: 'Completed',
+  3: 'Disputed',
+  4: 'Released'
 }
 
-export default function TaskPage({ params }: TaskPageProps) {
-  const [taskData, setTaskData] = useState<TaskData>({
-    id: 0n,
-    customer: '0x0000000000000000000000000000000000000000',
-    operator: '0x0000000000000000000000000000000000000000',
-    paymentToken: '0x0000000000000000000000000000000000000000',
-    amount: 0n,
-    deadline: 0n,
-    proofDeadline: 0n,
-    status: 0,
-    ipfsHash: '',
-    proofHash: '',
-    loading: true,
-    error: null,
-    exists: false,
-  })
+export default function TaskDetailPage() {
+  const params = useParams()
+  const taskId = params.id as string
+  const { address, isConnected } = useAccount()
+  const publicClient = usePublicClient()
+  const { data: walletClient } = useWalletClient()
+  
+  const [task, setTask] = useState<Task | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [proofFile, setProofFile] = useState<File | null>(null)
 
   useEffect(() => {
-    async function loadTaskData() {
-      try {
-        const escrowAddress = await loadContractAddress('escrow')
-        
-        if (!escrowAddress) {
-          setTaskData(prev => ({
-            ...prev,
-            loading: false,
-            error: 'Escrow contract not deployed. Run `make deploy-local` first.',
-          }))
-          return
-        }
-
-        const escrow = await getEscrowContract()
-        const taskId = BigInt(params.id)
-        
-        // Check if task exists by getting task counter
-        const taskCounter = await escrow.read.taskCounter() as bigint
-        
-        if (taskId === 0n || taskId > taskCounter) {
-          setTaskData(prev => ({
-            ...prev,
-            loading: false,
-            error: `Task #${params.id} does not exist. Current task counter: ${taskCounter.toString()}`,
-            exists: false,
-          }))
-          return
-        }
-
-        // Get task data
-        const task = await escrow.read.tasks([taskId]) as any[]
-        
-        setTaskData({
-          id: taskId,
-          customer: task[0] as AddressType,
-          operator: task[1] as AddressType,
-          paymentToken: task[2] as AddressType,
-          amount: task[3] as bigint,
-          deadline: task[4] as bigint,
-          proofDeadline: task[5] as bigint,
-          status: task[6] as TaskStatusType,
-          ipfsHash: task[7] as string,
-          proofHash: task[8] as string,
-          loading: false,
-          error: null,
-          exists: true,
-        })
-      } catch (error) {
-        console.error('Error loading task data:', error)
-        setTaskData(prev => ({
-          ...prev,
-          loading: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }))
-      }
+    if (publicClient && taskId) {
+      loadTask()
     }
+  }, [publicClient, taskId])
 
-    loadTaskData()
-  }, [params.id])
+  const loadTask = async () => {
+    if (!publicClient || !taskId) return
 
-  const formatTimestamp = (timestamp: bigint) => {
-    if (timestamp === 0n) return 'Not set'
-    return new Date(Number(timestamp) * 1000).toLocaleString()
+    try {
+      setLoading(true)
+      const escrow = getEscrowContract(publicClient)
+      
+      const taskData = await escrow.read.tasks([BigInt(taskId)])
+      
+      const task: Task = {
+        id: taskId,
+        requester: taskData[0] as string,
+        operator: taskData[1] as string,
+        metadataCid: taskData[2] as string,
+        budget: taskData[3] as bigint,
+        deadline: taskData[4] as bigint,
+        status: taskData[5] as number
+      }
+
+      // Try to get proof CID if task is completed
+      if (task.status >= 2) {
+        try {
+          const proofCid = await escrow.read.getTaskProof([BigInt(taskId)])
+          if (proofCid && proofCid !== '') {
+            task.proofCid = proofCid as string
+          }
+        } catch (error) {
+          console.warn('Failed to load proof CID:', error)
+        }
+      }
+
+      // Load metadata from IPFS
+      try {
+        const metadataUrl = getIPFSUrl(task.metadataCid)
+        const response = await fetch(metadataUrl)
+        if (response.ok) {
+          task.metadata = await response.json()
+        }
+      } catch (error) {
+        console.warn('Failed to load metadata:', error)
+      }
+
+      setTask(task)
+    } catch (error) {
+      console.error('Failed to load task:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const formatAmount = (amount: bigint) => {
-    // Assuming 18 decimals for ERC20 token
-    const divisor = 10n ** 18n
-    const whole = amount / divisor
-    const fractional = amount % divisor
-    return `${whole}.${fractional.toString().padStart(18, '0').slice(0, 6)}`
+  const handleAcceptTask = async () => {
+    if (!walletClient || !task) throw new Error('Wallet not connected or task not loaded')
+
+    const escrow = getEscrowContract(walletClient)
+    const hash = await escrow.write.acceptTask([BigInt(task.id)])
+    
+    console.log('Accept task transaction:', hash)
+    setTimeout(loadTask, 2000)
   }
+
+  const handleFundTask = async () => {
+    if (!walletClient || !task) throw new Error('Wallet not connected or task not loaded')
+
+    const escrow = getEscrowContract(walletClient)
+    const hash = await escrow.write.fundTask([BigInt(task.id), task.budget])
+    
+    console.log('Fund task transaction:', hash)
+    setTimeout(loadTask, 2000)
+  }
+
+  const handleSubmitProof = async () => {
+    if (!walletClient || !task || !proofFile) throw new Error('Missing requirements for proof submission')
+
+    // Upload proof file to IPFS
+    const proofCid = await addFile(proofFile)
+    console.log('Proof uploaded to IPFS:', proofCid)
+
+    // Submit proof on-chain
+    const escrow = getEscrowContract(walletClient)
+    const hash = await escrow.write.submitProof([BigInt(task.id), proofCid])
+    
+    console.log('Submit proof transaction:', hash)
+    setTimeout(loadTask, 2000)
+  }
+
+  const handleReleasePayment = async () => {
+    if (!walletClient || !task) throw new Error('Wallet not connected or task not loaded')
+
+    const escrow = getEscrowContract(walletClient)
+    const hash = await escrow.write.releasePayment([BigInt(task.id)])
+    
+    console.log('Release payment transaction:', hash)
+    setTimeout(loadTask, 2000)
+  }
+
+  const handleDispute = async () => {
+    if (!walletClient || !task) throw new Error('Wallet not connected or task not loaded')
+
+    const escrow = getEscrowContract(walletClient)
+    const hash = await escrow.write.disputeTask([BigInt(task.id)])
+    
+    console.log('Dispute task transaction:', hash)
+    setTimeout(loadTask, 2000)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading task...</p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (!task) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Task Not Found</h1>
+            <p className="text-gray-600">The requested task could not be found.</p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  const isRequester = address?.toLowerCase() === task.requester.toLowerCase()
+  const isOperator = address?.toLowerCase() === task.operator.toLowerCase()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gray-50">
       <Header />
       
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Task #{params.id}
-            </h1>
-            {taskData.exists && !taskData.loading && (
-              <StatusBadge status={taskData.status} />
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                  {task.metadata?.title || `Task #${task.id}`}
+                </h1>
+                <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                  task.status === 0 ? 'bg-green-100 text-green-800' :
+                  task.status === 1 ? 'bg-blue-100 text-blue-800' :
+                  task.status === 2 ? 'bg-yellow-100 text-yellow-800' :
+                  task.status === 3 ? 'bg-red-100 text-red-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {TaskStatus[task.status as keyof typeof TaskStatus]}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Task Details</h3>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="text-gray-500">Description:</span>
+                    <p className="mt-1">{task.metadata?.description || 'No description available'}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Budget:</span>
+                    <span className="ml-2 font-medium">{formatEther(task.budget)} TEST</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Deadline:</span>
+                    <span className="ml-2 font-medium">
+                      {new Date(Number(task.deadline) * 1000).toLocaleString()}
+                    </span>
+                  </div>
+                  {task.metadata?.coordinates && (
+                    <div>
+                      <span className="text-gray-500">Location:</span>
+                      <span className="ml-2 font-medium">
+                        {task.metadata.coordinates.latitude.toFixed(6)}, {task.metadata.coordinates.longitude.toFixed(6)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Participants</h3>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="text-gray-500">Requester:</span>
+                    <div className="font-mono text-xs mt-1">{task.requester}</div>
+                    {isRequester && <span className="text-blue-600 text-xs">(You)</span>}
+                  </div>
+                  {task.operator !== '0x0000000000000000000000000000000000000000' && (
+                    <div>
+                      <span className="text-gray-500">Operator:</span>
+                      <div className="font-mono text-xs mt-1">{task.operator}</div>
+                      {isOperator && <span className="text-blue-600 text-xs">(You)</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Proof Section */}
+            {task.proofCid && (
+              <div className="border-t pt-6 mb-6">
+                <h3 className="text-lg font-semibold mb-3">Submitted Proof</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">Proof file available on IPFS:</p>
+                  <a
+                    href={getIPFSUrl(task.proofCid)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 text-sm font-mono break-all"
+                  >
+                    {task.proofCid}
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            {isConnected && (
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-semibold mb-4">Actions</h3>
+                <div className="space-y-4">
+                  
+                  {/* Accept task (for operators) */}
+                  {task.status === 0 && !isRequester && (
+                    <TxButton onClick={handleAcceptTask} variant="primary">
+                      Accept Task
+                    </TxButton>
+                  )}
+                  
+                  {/* Fund task (for requesters) */}
+                  {task.status === 1 && isRequester && (
+                    <TxButton onClick={handleFundTask} variant="primary">
+                      Fund Task ({formatEther(task.budget)} TEST)
+                    </TxButton>
+                  )}
+                  
+                  {/* Submit proof (for operators) */}
+                  {task.status === 1 && isOperator && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Upload Proof of Completion
+                        </label>
+                        <FileDrop
+                          onFileSelect={setProofFile}
+                          accept="image/*,.pdf,.zip"
+                          maxSize={50 * 1024 * 1024} // 50MB
+                        />
+                      </div>
+                      {proofFile && (
+                        <TxButton onClick={handleSubmitProof} variant="primary">
+                          Submit Proof to IPFS & Blockchain
+                        </TxButton>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Release/Dispute (for requesters) */}
+                  {task.status === 2 && isRequester && (
+                    <div className="flex gap-4">
+                      <TxButton onClick={handleReleasePayment} variant="primary">
+                        Release Payment
+                      </TxButton>
+                      <TxButton onClick={handleDispute} variant="danger">
+                        Dispute Task
+                      </TxButton>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
-          
-          {taskData.loading ? (
-            <div className="bg-white p-8 rounded-lg shadow-md text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-2 text-gray-600">Loading task data...</p>
-            </div>
-          ) : taskData.error ? (
-            <div className="bg-white p-8 rounded-lg shadow-md">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-800">{taskData.error}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Task Overview */}
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-xl font-semibold mb-4">Task Overview</h2>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-700 mb-2">Participants</h3>
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <span className="text-gray-600">Customer:</span>
-                        <div className="mt-1">
-                          <Address address={taskData.customer} />
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Operator:</span>
-                        <div className="mt-1">
-                          {taskData.operator === '0x0000000000000000000000000000000000000000' ? (
-                            <span className="text-gray-500 italic">Not assigned</span>
-                          ) : (
-                            <Address address={taskData.operator} />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-semibold text-gray-700 mb-2">Payment Details</h3>
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <span className="text-gray-600">Token:</span>
-                        <div className="mt-1">
-                          <Address address={taskData.paymentToken} />
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Amount:</span>
-                        <span className="ml-2 font-mono">{formatAmount(taskData.amount)} tokens</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Deadlines */}
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-xl font-semibold mb-4">Deadlines</h2>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-gray-600">Task Deadline:</span>
-                    <div className="mt-1 font-mono text-sm">
-                      {formatTimestamp(taskData.deadline)}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Proof Deadline:</span>
-                    <div className="mt-1 font-mono text-sm">
-                      {formatTimestamp(taskData.proofDeadline)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Content & Proofs */}
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-xl font-semibold mb-4">Content & Proofs</h2>
-                <div className="space-y-4">
-                  <div>
-                    <span className="text-gray-600">IPFS Hash (Task Description):</span>
-                    <div className="mt-1">
-                      {taskData.ipfsHash ? (
-                        <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono break-all">
-                          {taskData.ipfsHash}
-                        </code>
-                      ) : (
-                        <span className="text-gray-500 italic">Not set</span>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Proof Hash:</span>
-                    <div className="mt-1">
-                      {taskData.proofHash ? (
-                        <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono break-all">
-                          {taskData.proofHash}
-                        </code>
-                      ) : (
-                        <span className="text-gray-500 italic">Not submitted</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Status Information */}
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h2 className="text-xl font-semibold mb-4">Status Information</h2>
-                <div className="flex items-center gap-4">
-                  <StatusBadge status={taskData.status} />
-                  <span className="text-gray-600">
-                    Current status: <strong>{TaskStatus[taskData.status]}</strong>
-                  </span>
-                </div>
-                
-                <div className="mt-4 text-sm text-gray-600">
-                  <h3 className="font-semibold mb-2">Status Descriptions:</h3>
-                  <ul className="space-y-1">
-                    <li><strong>Created:</strong> Task has been created but not yet funded</li>
-                    <li><strong>Funded:</strong> Customer has deposited payment, waiting for operator</li>
-                    <li><strong>Accepted:</strong> Operator has accepted the task</li>
-                    <li><strong>Submitted:</strong> Operator has submitted proof of completion</li>
-                    <li><strong>Disputed:</strong> Customer has disputed the submitted proof</li>
-                    <li><strong>Released:</strong> Payment has been released to operator</li>
-                    <li><strong>Cancelled:</strong> Task has been cancelled</li>
-                    <li><strong>Resolved:</strong> Dispute has been resolved</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </main>
     </div>

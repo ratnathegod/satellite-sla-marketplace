@@ -1,6 +1,112 @@
+'use client'
+
+import { useState } from 'react'
+import { useAccount, useWalletClient } from 'wagmi'
+import { parseEther } from 'viem'
+import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
+import { TxButton } from '@/components/TxButton'
+import { FileDrop } from '@/components/FileDrop'
+import { getEscrowContract } from '@/lib/contracts'
+import { addJSON } from '@/lib/ipfs'
+
+interface TaskFormData {
+  title: string
+  description: string
+  latitude: string
+  longitude: string
+  deadline: string
+  budget: string
+}
 
 export default function NewTask() {
+  const { isConnected } = useAccount()
+  const { data: walletClient } = useWalletClient()
+  const router = useRouter()
+  
+  const [formData, setFormData] = useState<TaskFormData>({
+    title: '',
+    description: '',
+    latitude: '',
+    longitude: '',
+    deadline: '',
+    budget: ''
+  })
+  
+  const [requirementsFile, setRequirementsFile] = useState<File | null>(null)
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleCreateTask = async () => {
+    if (!walletClient) throw new Error('Wallet not connected')
+    
+    // Validate form
+    if (!formData.title || !formData.description || !formData.budget) {
+      throw new Error('Please fill in all required fields')
+    }
+
+    // Create task manifest
+    const taskManifest = {
+      title: formData.title,
+      description: formData.description,
+      coordinates: {
+        latitude: parseFloat(formData.latitude) || 0,
+        longitude: parseFloat(formData.longitude) || 0
+      },
+      deadline: formData.deadline ? new Date(formData.deadline).toISOString() : null,
+      budget: formData.budget,
+      createdAt: new Date().toISOString(),
+      requirements: requirementsFile ? {
+        filename: requirementsFile.name,
+        size: requirementsFile.size,
+        type: requirementsFile.type
+      } : null
+    }
+
+    // Upload manifest to IPFS
+    const manifestCid = await addJSON(taskManifest)
+    console.log('Task manifest uploaded to IPFS:', manifestCid)
+
+    // Create task on-chain
+    const escrow = getEscrowContract(walletClient)
+    const budgetWei = parseEther(formData.budget)
+    const deadlineTimestamp = formData.deadline 
+      ? Math.floor(new Date(formData.deadline).getTime() / 1000)
+      : Math.floor(Date.now() / 1000) + 86400 * 7 // Default to 7 days from now
+
+    const hash = await escrow.write.createTask([
+      manifestCid,
+      budgetWei,
+      BigInt(deadlineTimestamp)
+    ])
+
+    console.log('Create task transaction:', hash)
+    
+    // Redirect to tasks page after successful creation
+    setTimeout(() => {
+      router.push('/tasks')
+    }, 2000)
+  }
+
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-3xl font-bold text-gray-900 mb-8">Create New Satellite Task</h1>
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <p className="text-gray-600">Please connect your wallet to create a new task.</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <Header />
@@ -10,15 +116,17 @@ export default function NewTask() {
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Create New Satellite Task</h1>
           
           <div className="bg-white rounded-lg shadow-md p-6">
-            <form className="space-y-6">
+            <div className="space-y-6">
               <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
-                  Task Title
+                  Task Title *
                 </label>
                 <input
                   type="text"
                   id="title"
                   name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g., High-resolution imaging of agricultural area"
                 />
@@ -26,11 +134,13 @@ export default function NewTask() {
 
               <div>
                 <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
+                  Description *
                 </label>
                 <textarea
                   id="description"
                   name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Detailed description of the satellite task requirements..."
@@ -46,6 +156,8 @@ export default function NewTask() {
                     type="number"
                     id="latitude"
                     name="latitude"
+                    value={formData.latitude}
+                    onChange={handleInputChange}
                     step="0.000001"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g., 40.7128"
@@ -60,6 +172,8 @@ export default function NewTask() {
                     type="number"
                     id="longitude"
                     name="longitude"
+                    value={formData.longitude}
+                    onChange={handleInputChange}
                     step="0.000001"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g., -74.0060"
@@ -75,39 +189,49 @@ export default function NewTask() {
                   type="datetime-local"
                   id="deadline"
                   name="deadline"
+                  value={formData.deadline}
+                  onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <div>
                 <label htmlFor="budget" className="block text-sm font-medium text-gray-700 mb-2">
-                  Budget (ETH)
+                  Budget (TEST tokens) *
                 </label>
                 <input
                   type="number"
                   id="budget"
                   name="budget"
+                  value={formData.budget}
+                  onChange={handleInputChange}
                   step="0.001"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., 0.1"
+                  placeholder="e.g., 100"
                 />
               </div>
 
-              <div className="flex gap-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-                >
-                  Create Task
-                </button>
-                <button
-                  type="button"
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 font-semibold py-3 px-6 rounded-lg transition-colors"
-                >
-                  Save Draft
-                </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Requirements Document (Optional)
+                </label>
+                <FileDrop
+                  onFileSelect={setRequirementsFile}
+                  accept=".pdf,.doc,.docx,.txt"
+                  maxSize={5 * 1024 * 1024} // 5MB
+                />
               </div>
-            </form>
+
+              <div className="border-t pt-6">
+                <TxButton onClick={handleCreateTask} className="w-full">
+                  Create Task & Upload to IPFS
+                </TxButton>
+                <p className="text-sm text-gray-500 mt-2">
+                  This will create the task manifest, upload it to IPFS, and create the task on-chain.
+                  Make sure you have approved the Escrow contract to spend your TEST tokens.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </main>

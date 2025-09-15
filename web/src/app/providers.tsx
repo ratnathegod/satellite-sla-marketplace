@@ -1,16 +1,11 @@
 'use client'
 
-import {
-  QueryClientProvider,
-  QueryClient,
-} from '@tanstack/react-query'
-
-const queryClient = new QueryClient()
+import { WalletProvider } from '@/providers/wallet'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <QueryClientProvider client={queryClient}>
+    <WalletProvider>
       {children}
-    </QueryClientProvider>
+    </WalletProvider>
   )
 }
