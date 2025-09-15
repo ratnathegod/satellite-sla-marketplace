@@ -41,11 +41,11 @@ test:
 	@cd web && pnpm build
 	@echo "✅ All tests passed!"
 
-# Deploy contracts to local anvil (placeholder)
+# Deploy contracts to local anvil
 deploy-local:
 	@echo "🚀 Deploying contracts to local anvil..."
-	@echo "This is a placeholder - implement actual deployment script"
 	@cd contracts && forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast
+	@echo "✅ Contracts deployed and addresses exported to web/public/abi/"
 
 # Export contract ABIs to web package
 export-abi:

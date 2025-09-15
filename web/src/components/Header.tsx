@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
 
 export function Header() {
   return (
@@ -21,6 +20,12 @@ export function Header() {
                 Home
               </Link>
               <Link 
+                href="/events" 
+                className="text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                Events
+              </Link>
+              <Link 
                 href="/new-task" 
                 className="text-gray-600 hover:text-gray-900 transition-colors"
               >
@@ -36,7 +41,9 @@ export function Header() {
           </div>
           
           <div className="flex items-center space-x-4">
-            <ConnectButton />
+            <div className="px-4 py-2 bg-gray-100 rounded-lg text-sm text-gray-600">
+              Read-only Mode
+            </div>
           </div>
         </div>
       </div>

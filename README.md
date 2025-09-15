@@ -79,6 +79,49 @@ A decentralized marketplace for satellite tasking with verifiable Service Level 
 - **Verifier** (Port 8081): Go service for proof verification
 - **Web App** (Port 3000): Next.js frontend application
 
+## 🌐 Web Integration v1
+
+The Next.js application provides read-only integration with the deployed Escrow contract:
+
+### Contract Artifacts Export
+
+- `make export-abi` copies contract ABIs from `contracts/out` to `web/public/abi/`
+- `make deploy-local` automatically exports contract addresses to `web/public/abi/*.address.json`
+- Address files use chain ID as key: `{"31337": "0x..."}`
+
+### Environment Configuration
+
+The web app reads configuration from environment variables:
+
+```bash
+NEXT_PUBLIC_CHAIN_ID=31337                    # Target blockchain
+NEXT_PUBLIC_RPC_URL=http://localhost:8545     # RPC endpoint
+NEXT_PUBLIC_VERIFIER_URL=http://localhost:8081 # Verifier service
+```
+
+### Pages & Features
+
+- **Dashboard (/)**: Shows chain info, contract addresses, owner, and task count
+- **Events (/events)**: Lists all contract events with transaction links and decoded parameters
+- **Task Details (/task/[id])**: Displays complete task information including status, participants, deadlines, and proofs
+- **Read-only Mode**: All pages work without wallet connection using `publicClient`
+
+### Development Utilities
+
+- `pnpm dev-print` - Displays current contract addresses and quick links
+- Contract utilities in `web/src/lib/viem.ts` for easy contract interaction
+- Reusable components: `Address` (with copy button) and `StatusBadge`
+
+### Testing Integration
+
+After deploying contracts locally:
+
+1. Visit http://localhost:3000 to see contract status
+2. Check http://localhost:3000/events for transaction history  
+3. View http://localhost:3000/task/1 for task details (after creating tasks)
+
+The integration handles missing contracts gracefully with clear error messages.
+
 ## 🔧 Development
 
 ### Available Commands

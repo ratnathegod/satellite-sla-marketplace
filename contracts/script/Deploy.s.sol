@@ -22,5 +22,20 @@ contract DeployScript is Script {
     console.log("Total supply:", token.totalSupply());
     
     vm.stopBroadcast();
+    
+    // Export addresses to web package
+    string memory chainId = vm.toString(block.chainid);
+    string memory escrowAddress = vm.toString(address(escrow));
+    string memory tokenAddress = vm.toString(address(token));
+    
+    // Create address JSON files for web integration
+    string memory escrowJson = string.concat('{"', chainId, '":"', escrowAddress, '"}');
+    string memory tokenJson = string.concat('{"', chainId, '":"', tokenAddress, '"}');
+    
+    vm.writeFile("../web/public/abi/escrow.address.json", escrowJson);
+    vm.writeFile("../web/public/abi/mockerc20.address.json", tokenJson);
+    
+    console.log("Addresses exported to web/public/abi/");
+    console.log("Deployment completed successfully!");
   }
 }
