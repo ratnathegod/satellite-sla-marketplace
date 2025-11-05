@@ -41,7 +41,7 @@ vendor/
 cache/
 out/
 broadcast/
-lib/
+/contracts/lib/
 
 # Docker
 .dockerignore
