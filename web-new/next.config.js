@@ -5,22 +5,30 @@ const nextConfig = {
     config.externals.push('pino-pretty', 'lokijs', 'encoding')
     return config
   },
-  // Add custom server startup message
   onDemandEntries: {
     maxInactiveAge: 25 * 1000,
     pagesBufferLength: 2,
   },
 }
 
-// Print startup message when in development
-if (process.env.NODE_ENV === 'development') {
-  const port = process.env.PORT || 5001
-  const chainId = process.env.NEXT_PUBLIC_CHAIN_ID || 31337
+// Print custom startup message in development
+if (process.env.NODE_ENV !== 'production') {
+  const originalLog = console.log
+  let hasLogged = false
   
-  // Use setTimeout to ensure this runs after Next.js server starts
-  setTimeout(() => {
-    console.log(`🚀 SatSLA running on http://localhost:${port} (chain ${chainId})`)
-  }, 1000)
+  console.log = function(...args) {
+    originalLog.apply(console, args)
+    
+    // Detect Next.js ready message and add our custom message
+    const message = args.join(' ')
+    if (!hasLogged && message.includes('Ready in')) {
+      hasLogged = true
+      const chainId = process.env.NEXT_PUBLIC_CHAIN_ID || '31337'
+      setTimeout(() => {
+        originalLog(`\n🚀 SatSLA running on http://localhost:5001 (chain ${chainId})\n`)
+      }, 100)
+    }
+  }
 }
 
 module.exports = nextConfig
