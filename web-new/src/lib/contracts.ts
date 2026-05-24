@@ -1,23 +1,78 @@
 import { getContract, type Address, type PublicClient, type WalletClient } from 'viem'
 import { loadContractABI, loadContractAddress, publicClient } from './viem'
 
+type Hash = `0x${string}`
+type BlockRange = { fromBlock?: bigint; toBlock?: bigint | 'latest' }
+
+type TaskCreatedEvent = {
+  args: {
+    taskId?: bigint
+    taskRefCid?: string
+  }
+}
+
+export interface EscrowContract {
+  address: Address
+  read: {
+    owner: () => Promise<Address>
+    nextTaskId: () => Promise<bigint>
+    getTask: (args: readonly [bigint]) => Promise<readonly unknown[]>
+    isDisputeWindowActive: (args: readonly [bigint]) => Promise<boolean>
+  }
+  write: {
+    createTask: (
+      args: readonly [Address, Address, bigint, bigint, number, number, string]
+    ) => Promise<Hash>
+    fundTask: (args: readonly [bigint]) => Promise<Hash>
+    cancelUnaccepted: (args: readonly [bigint]) => Promise<Hash>
+    acceptTask: (args: readonly [bigint]) => Promise<Hash>
+    submitProof: (
+      args: readonly [bigint, Hash, Hash, Hash]
+    ) => Promise<Hash>
+    release: (args: readonly [bigint]) => Promise<Hash>
+    dispute: (args: readonly [bigint]) => Promise<Hash>
+    resolveDispute: (args: readonly [bigint, boolean]) => Promise<Hash>
+  }
+  getEvents: {
+    TaskCreated: (range?: BlockRange) => Promise<TaskCreatedEvent[]>
+  }
+}
+
+export interface MockERC20Contract {
+  address: Address
+  read: {
+    balanceOf: (args: readonly [Address]) => Promise<bigint>
+    allowance: (args: readonly [Address, Address]) => Promise<bigint>
+  }
+  write: {
+    approve: (args: readonly [Address, bigint]) => Promise<Hash>
+    mint: (args: readonly [Address, bigint]) => Promise<Hash>
+  }
+}
+
 // Get Escrow contract instance
-export async function getEscrowContract(client?: PublicClient | WalletClient) {
+export async function getEscrowContract(
+  client?: PublicClient | WalletClient
+): Promise<EscrowContract> {
   const address = await loadContractAddress('escrow')
   if (!address) throw new Error('Escrow contract address not found')
   
   const abi = await loadContractABI('Escrow')
   if (!abi) throw new Error('Escrow ABI not found')
   
+  // Runtime ABIs are loaded from Foundry JSON, so Viem cannot infer literal
+  // method types here. Keep the ABI boundary centralized in this adapter.
   return getContract({
     address,
     abi,
     client: client || publicClient,
-  })
+  }) as unknown as EscrowContract
 }
 
 // Get MockERC20 contract instance
-export async function getMockERC20Contract(client?: PublicClient | WalletClient) {
+export async function getMockERC20Contract(
+  client?: PublicClient | WalletClient
+): Promise<MockERC20Contract> {
   const address = await loadContractAddress('mockerc20')
   if (!address) throw new Error('MockERC20 contract address not found')
   
@@ -28,7 +83,7 @@ export async function getMockERC20Contract(client?: PublicClient | WalletClient)
     address,
     abi,
     client: client || publicClient,
-  })
+  }) as unknown as MockERC20Contract
 }
 
 // Get both contract addresses

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultPort = "8081"
+	defaultPort = "8091"
 )
 
 func main() {
@@ -25,8 +25,9 @@ func main() {
 
 	router := mux.NewRouter()
 	
-	// Health check endpoint
+	// Routes
 	router.HandleFunc("/healthz", httpHandler.HealthHandler).Methods("GET")
+	router.HandleFunc("/verifyProof", httpHandler.VerifyProofHandler).Methods("POST")
 	
 	// CORS middleware for development
 	router.Use(func(next http.Handler) http.Handler {

@@ -1,5 +1,7 @@
 # SatSLA - Satellite SLA Marketplace (New Frontend)
 
+> Historical implementation notes. For the canonical local demo flow, use `../docs/LOCAL_DEMO.md`.
+
 ## ✅ What's Been Built
 
 ### Core Infrastructure (COMPLETE)
@@ -7,7 +9,7 @@
 - ✅ TypeScript configuration
 - ✅ Tailwind CSS with dark theme
 - ✅ Package.json with all dependencies (Framer Motion, RainbowKit, Wagmi, Viem, Lottie, etc.)
-- ✅ Port 5001 configuration
+- ✅ Port 3000 configuration
 - ✅ Environment variables (.env.local)
 
 ### Library Utilities (COMPLETE)
@@ -261,7 +263,7 @@ export default function NewTaskPage() {
 ### 2. Install Missing Dependency
 
 ```bash
-cd /Users/ratna/satellite-sla-marketplace/satellite-sla-marketplace/web-new
+cd /Users/ratna/satellite-sla-marketplace/web-new
 pnpm add tailwindcss-animate
 ```
 
@@ -272,10 +274,10 @@ pnpm add tailwindcss-animate
 ```bash
 cd web-new
 pnpm install        # Already done
-pnpm dev            # Starts on port 5001
+pnpm dev            # Starts on port 3000
 ```
 
-Then visit: **http://localhost:5001**
+Then visit: **http://localhost:3000**
 
 ---
 

@@ -1,26 +1,33 @@
+name: satellite-sla-marketplace
+
 services:
   anvil:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: satellite-anvil
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 31337
+    command: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337"]
     ports:
       - "8545:8545"
     networks:
       - satellite-network
 
-
   ipfs:
     image: ipfs/kubo:latest
     container_name: satellite-ipfs
     ports:
-      - "5001:5001"  # API
-      - "8080:8080"  # Gateway
+      - "5001:5001"
+      - "8080:8080"
     volumes:
       - ipfs_data:/data/ipfs
     networks:
       - satellite-network
-    environment:
-      - IPFS_PROFILE=server
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ipfs init --profile=server || true
+        ipfs config --json API.HTTPHeaders.Access-Control-Allow-Origin '["http://localhost:3000","http://127.0.0.1:3000","http://localhost:3001","http://127.0.0.1:3001"]'
+        ipfs config --json API.HTTPHeaders.Access-Control-Allow-Methods '["PUT","POST","GET","OPTIONS"]'
+        ipfs config --json API.HTTPHeaders.Access-Control-Allow-Headers '["Authorization","Content-Type"]'
+        ipfs daemon --migrate=true --agent-version-suffix=docker
     healthcheck:
       test: ["CMD", "ipfs", "id"]
       interval: 10s
@@ -33,42 +40,48 @@ services:
       dockerfile: Dockerfile
     container_name: satellite-verifier
     ports:
-      - "8082:8082"
+      - "8091:8091"
     environment:
-      - PORT=8082
-      - RPC_URL=http://anvil:8545
-      - EAS_REGISTRY=0x0000000000000000000000000000000000000000
+      PORT: "8091"
+      RPC_URL: http://anvil:8545
+      EAS_REGISTRY: "0x0000000000000000000000000000000000000000"
     networks:
       - satellite-network
     depends_on:
       - anvil
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/healthz"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8091/healthz"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  web:
-    build:
-      context: ../../web
-      dockerfile: Dockerfile
-    container_name: satellite-web
+  web-new:
+    image: node:20-bookworm-slim
+    container_name: satellite-web-new
+    working_dir: /workspace
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_CHAIN_ID=31337
-      - NEXT_PUBLIC_RPC_URL=http://localhost:8545
-      - NEXT_PUBLIC_VERIFIER_URL=http://localhost:8082
+      NEXT_PUBLIC_CHAIN_ID: "31337"
+      NEXT_PUBLIC_RPC_URL: http://localhost:8545
+      NEXT_PUBLIC_VERIFIER_URL: http://localhost:8091
+      VERIFIER_URL: http://verifier:8091
+      NEXT_PUBLIC_IPFS_API_URL: http://localhost:5001
+      NEXT_PUBLIC_IPFS_GATEWAY_URL: http://localhost:8080/ipfs
+      NEXT_PUBLIC_WALLET_CONNECT_ID: local-demo
+      PORT: "3000"
     networks:
       - satellite-network
     depends_on:
       - anvil
+      - ipfs
       - verifier
     volumes:
-      - ../../web:/app
-      - /app/node_modules
-      - /app/.next
-    command: npm run dev
+      - ../..:/workspace
+      - root_node_modules:/workspace/node_modules
+      - web_new_node_modules:/workspace/web-new/node_modules
+      - web_new_next:/workspace/web-new/.next
+    command: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile && pnpm -C web-new dev"]
 
 networks:
   satellite-network:
@@ -76,3 +89,6 @@ networks:
 
 volumes:
   ipfs_data:
+  root_node_modules:
+  web_new_node_modules:
+  web_new_next:

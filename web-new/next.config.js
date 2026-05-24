@@ -24,8 +24,9 @@ if (process.env.NODE_ENV !== 'production') {
     if (!hasLogged && message.includes('Ready in')) {
       hasLogged = true
       const chainId = process.env.NEXT_PUBLIC_CHAIN_ID || '31337'
+      const port = process.env.PORT || '3000'
       setTimeout(() => {
-        originalLog(`\n🚀 SatSLA running on http://localhost:5001 (chain ${chainId})\n`)
+        originalLog(`\n🚀 SatSLA running on http://localhost:${port} (chain ${chainId})\n`)
       }, 100)
     }
   }

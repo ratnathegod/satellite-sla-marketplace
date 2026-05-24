@@ -7,14 +7,14 @@ import "../src/MockERC20.sol";
 
 contract ExportABIScript is Script {
     function run() external {
-        // Export ABIs to web/public/abi/
+        // Export ABIs to canonical web-new/public/abi/
         string memory escrowABI = vm.readFile("out/Escrow.sol/Escrow.json");
         string memory mockERC20ABI = vm.readFile("out/MockERC20.sol/MockERC20.json");
         
-        vm.writeFile("../web/public/abi/Escrow.json", escrowABI);
-        vm.writeFile("../web/public/abi/MockERC20.json", mockERC20ABI);
+        vm.writeFile("../web-new/public/abi/Escrow.json", escrowABI);
+        vm.writeFile("../web-new/public/abi/MockERC20.json", mockERC20ABI);
         
-        console.log("ABIs exported to web/public/abi/");
+        console.log("ABIs exported to web-new/public/abi/");
         console.log("- Escrow.json");
         console.log("- MockERC20.json");
     }

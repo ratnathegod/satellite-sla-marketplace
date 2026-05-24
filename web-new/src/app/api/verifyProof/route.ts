@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const VERIFIER_URL = process.env.NEXT_PUBLIC_VERIFIER_URL || 'http://localhost:8091'
+const VERIFIER_URL =
+  process.env.VERIFIER_URL ||
+  process.env.NEXT_PUBLIC_VERIFIER_URL ||
+  'http://localhost:8091'
 
 export async function POST(req: NextRequest) {
   try {

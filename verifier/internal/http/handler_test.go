@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -69,4 +70,34 @@ func TestHealthHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVerifyProofHandler(t *testing.T) {
+	// Method not allowed
+	t.Run("method not allowed", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/verifyProof", nil)
+		w := httptest.NewRecorder()
+		VerifyProofHandler(w, req)
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("expected 405, got %d", w.Code)
+		}
+	})
+
+	// Happy path
+	t.Run("happy path", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"artifactCid":"QmA","manifestCid":"QmB","artifactHash":"0xabc","manifestHash":"0xdef","taskId":"1"}`)
+		req := httptest.NewRequest(http.MethodPost, "/verifyProof", body)
+		w := httptest.NewRecorder()
+		VerifyProofHandler(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+		var resp VerifyResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if !resp.Valid || resp.AttestationID == "" {
+			t.Fatalf("unexpected resp: %+v", resp)
+		}
+	})
 }

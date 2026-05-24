@@ -16,14 +16,23 @@ contract DeployScript is Script {
     console.log("Escrow deployed to:", address(escrow));
     console.log("Owner:", escrow.owner());
     
-    // Deploy Mock ERC20 for testing
+    // Deploy Mock ERC20 for local/demo payments
     MockERC20 token = new MockERC20("Satellite Token", "SAT");
     console.log("MockERC20 deployed to:", address(token));
     console.log("Total supply:", token.totalSupply());
+
+    // Seed the first two default Anvil accounts for a requester/operator demo.
+    address demoRequester = address(0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266);
+    address demoOperator = address(0x70997970c51812dc3a010c7d01b50e0d17dc79c8);
+    uint256 demoMintAmount = 10_000 ether;
+    token.mint(demoRequester, demoMintAmount);
+    token.mint(demoOperator, demoMintAmount);
+    console.log("Demo tokens minted to requester:", demoRequester);
+    console.log("Demo tokens minted to operator:", demoOperator);
     
     vm.stopBroadcast();
     
-    // Export addresses to web package
+    // Export addresses to canonical web-new package
     string memory chainId = vm.toString(block.chainid);
     string memory escrowAddress = vm.toString(address(escrow));
     string memory tokenAddress = vm.toString(address(token));
@@ -32,10 +41,10 @@ contract DeployScript is Script {
     string memory escrowJson = string.concat('{"', chainId, '":"', escrowAddress, '"}');
     string memory tokenJson = string.concat('{"', chainId, '":"', tokenAddress, '"}');
     
-    vm.writeFile("../web/public/abi/escrow.address.json", escrowJson);
-    vm.writeFile("../web/public/abi/mockerc20.address.json", tokenJson);
+    vm.writeFile("../web-new/public/abi/escrow.address.json", escrowJson);
+    vm.writeFile("../web-new/public/abi/mockerc20.address.json", tokenJson);
     
-    console.log("Addresses exported to web/public/abi/");
+    console.log("Addresses exported to web-new/public/abi/");
     console.log("Deployment completed successfully!");
   }
 }

@@ -1,5 +1,7 @@
 # 🚀 SatSLA Web Application - Complete Setup Guide
 
+> Historical frontend setup notes. For the canonical local demo flow, use `../docs/LOCAL_DEMO.md`.
+
 ## ✅ What We've Built
 
 A polished Next.js 14 + TypeScript front end for the Satellite SLA Marketplace with:
@@ -11,7 +13,7 @@ A polished Next.js 14 + TypeScript front end for the Satellite SLA Marketplace w
 - RainbowKit + Wagmi + Viem for Web3
 - React Query for async state
 - Lottie for animations
-- **Port 5001 configured**
+- **Port 3000 configured**
 
 ### Core Libraries ✅
 - `lib/viem.ts` - Client setup, ABI/address loaders
@@ -533,11 +535,11 @@ export default function DevPage() {
 ## 🚀 Running the App
 
 ```bash
-cd /Users/ratna/satellite-sla-marketplace/satellite-sla-marketplace/web-new
+cd /Users/ratna/satellite-sla-marketplace/web-new
 pnpm dev
 ```
 
-Then visit: **http://localhost:5001**
+Then visit: **http://localhost:3000**
 
 ---
 
@@ -573,4 +575,4 @@ The codebase follows best practices:
 - Accessible UI
 - Production-ready structure
 
-**Port 5001 is configured** in `package.json`.
+**Port 3000 is configured** in `package.json`.
