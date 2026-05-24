@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAccount, useWalletClient } from 'wagmi'
-import { keccak256, stringToBytes } from 'viem'
 import toast from 'react-hot-toast'
 import {
   ArrowLeft,
@@ -26,9 +25,17 @@ import { TxButton } from '@/components/TxButton'
 import { FileDrop } from '@/components/FileDrop'
 import { useTask, useTaskRole, useTaskActions, useContractEvents } from '@/lib/hooks'
 import { getEscrowContract, getMockERC20Contract } from '@/lib/contracts'
-import { uploadFile, uploadJson, makeGatewayUrl } from '@/lib/ipfs'
+import { makeGatewayUrl, uploadFileWithResult, uploadJsonWithResult } from '@/lib/ipfs'
 import { formatTokenAmount, formatDate, shortenAddress } from '@/lib/format'
 import { TaskStatus } from '@/lib/types'
+import {
+  DEMO_VERIFIER_MODE,
+  buildDemoProofManifest,
+  requireBytes32,
+  type SubmittedProofPreview,
+  type VerifyProofRequest,
+  type VerifyProofResponse,
+} from '@/lib/proof'
 
 export default function TaskDetailPage() {
   const params = useParams()
@@ -45,6 +52,8 @@ export default function TaskDetailPage() {
   // Local state
   const [refreshing, setRefreshing] = useState(false)
   const [proofFile, setProofFile] = useState<File | null>(null)
+  const [submittedProofPreview, setSubmittedProofPreview] =
+    useState<SubmittedProofPreview | null>(null)
   const [operatorWins, setOperatorWins] = useState<boolean | null>(null)
 
   const handleRefresh = async () => {
@@ -102,42 +111,94 @@ export default function TaskDetailPage() {
       throw new Error('Missing proof file')
     }
 
-    // Upload artifact to IPFS
-    const artifactCid = await uploadFile(proofFile)
+    setSubmittedProofPreview(null)
 
-    // Create and upload manifest
-    const manifest = {
-      artifactCid,
-      filename: proofFile.name,
-      size: proofFile.size,
-      type: proofFile.type,
-      taskId: task.id,
-      createdAt: new Date().toISOString(),
+    let proofUpload
+    try {
+      proofUpload = await uploadFileWithResult(proofFile)
+    } catch (error) {
+      throw new Error(
+        `IPFS proof upload failed: ${
+          error instanceof Error ? error.message : 'local IPFS is unavailable'
+        }`
+      )
     }
-    const manifestCid = await uploadJson(manifest)
 
-    // Hash CIDs to bytes32
-    const artifactHash = keccak256(stringToBytes(artifactCid))
-    const manifestHash = keccak256(stringToBytes(manifestCid))
+    const manifest = buildDemoProofManifest({
+      taskId: task.id,
+      proofFile,
+      proofCid: proofUpload.cid,
+      operator: task.operator,
+      requester: task.requester,
+      notes: 'Local deterministic demo proof manifest. Only hashes are stored on-chain.',
+    })
 
-    // Call verifier API
+    let manifestUpload
+    try {
+      manifestUpload = await uploadJsonWithResult(
+        manifest,
+        `task-${task.id}-proof-manifest.json`
+      )
+    } catch (error) {
+      throw new Error(
+        `IPFS manifest upload failed: ${
+          error instanceof Error ? error.message : 'local IPFS is unavailable'
+        }`
+      )
+    }
+
+    const verifyRequest: VerifyProofRequest = {
+      taskId: task.id,
+      proofCid: proofUpload.cid,
+      manifestCid: manifestUpload.cid,
+      operator: task.operator,
+      requester: task.requester,
+      proofFileName: manifest.proofFileName,
+      proofFileSize: manifest.proofFileSize,
+      proofFileType: manifest.proofFileType,
+      createdAt: manifest.createdAt,
+      verifierMode: DEMO_VERIFIER_MODE,
+    }
+
     const resp = await fetch('/api/verifyProof', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        artifactCid,
-        manifestCid,
-        artifactHash,
-        manifestHash,
-        taskId: task.id,
-      }),
+      body: JSON.stringify(verifyRequest),
     })
-    const data = await resp.json()
-    if (!data.valid || !data.attestationId) {
-      throw new Error('Verifier rejected proof')
+    const data = (await resp.json().catch(() => null)) as VerifyProofResponse | null
+
+    if (!resp.ok) {
+      throw new Error(
+        data?.message ||
+          'Verifier unavailable. Is the local verifier running on port 8091?'
+      )
     }
 
-    const attestationId = data.attestationId as `0x${string}`
+    if (!data?.valid) {
+      throw new Error(data?.message || 'Verifier rejected proof')
+    }
+
+    if (data.mode !== DEMO_VERIFIER_MODE) {
+      throw new Error(`Unexpected verifier mode: ${data.mode || 'unknown'}`)
+    }
+
+    const artifactHash = requireBytes32(data.artifactHash, 'artifactHash')
+    const manifestHash = requireBytes32(data.manifestHash, 'manifestHash')
+    const attestationId = requireBytes32(data.attestationId, 'attestationId')
+
+    setSubmittedProofPreview({
+      proofCid: proofUpload.cid,
+      proofGatewayUrl: proofUpload.gatewayUrl || makeGatewayUrl(proofUpload.cid),
+      manifestCid: manifestUpload.cid,
+      manifestGatewayUrl: manifestUpload.gatewayUrl || makeGatewayUrl(manifestUpload.cid),
+      verifierMode: data.mode,
+      artifactHash,
+      manifestHash,
+      attestationId,
+      message: data.message,
+      warnings: data.warnings,
+    })
+
     const escrow = await getEscrowContract(walletClient)
     await (escrow.write as any).submitProof([
       BigInt(task.id),
@@ -146,7 +207,7 @@ export default function TaskDetailPage() {
       attestationId,
     ])
 
-    toast.success('Proof submitted!')
+    toast.success('Proof submitted on-chain!')
     setProofFile(null)
     setTimeout(refresh, 2000)
   }
@@ -317,6 +378,11 @@ export default function TaskDetailPage() {
           {task.status >= TaskStatus.Submitted && task.artifactHash !== '0x0000000000000000000000000000000000000000000000000000000000000000' && (
             <div className="rounded-lg border border-border bg-card p-6">
               <h2 className="text-lg font-semibold mb-4">Submitted Proof</h2>
+              <p className="mb-4 text-xs text-muted-foreground">
+                Escrow stores only these bytes32 values on-chain. Local IPFS CIDs live in
+                the uploaded proof manifest and are shown immediately after submission in
+                this demo session.
+              </p>
               <dl className="grid gap-4">
                 <div>
                   <dt className="text-sm text-muted-foreground">Artifact Hash</dt>
@@ -452,7 +518,10 @@ export default function TaskDetailPage() {
                 {actions.canSubmitProof && (
                   <div className="space-y-3">
                     <FileDrop
-                      onFileSelect={setProofFile}
+                      onFileSelect={(file) => {
+                        setProofFile(file)
+                        setSubmittedProofPreview(null)
+                      }}
                       accept="*/*"
                       className="border-dashed"
                     />
@@ -460,6 +529,63 @@ export default function TaskDetailPage() {
                       <p className="text-sm text-muted-foreground">
                         Selected: {proofFile.name}
                       </p>
+                    )}
+                    {submittedProofPreview && (
+                      <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3 text-xs">
+                        <p className="font-medium text-foreground">
+                          Verifier mode: {submittedProofPreview.verifierMode}
+                        </p>
+                        {submittedProofPreview.message && (
+                          <p className="text-muted-foreground">
+                            {submittedProofPreview.message}
+                          </p>
+                        )}
+                        <div className="grid gap-1">
+                          <a
+                            href={submittedProofPreview.proofGatewayUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="break-all text-primary hover:underline"
+                          >
+                            Proof CID: {submittedProofPreview.proofCid}
+                          </a>
+                          <a
+                            href={submittedProofPreview.manifestGatewayUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="break-all text-primary hover:underline"
+                          >
+                            Manifest CID: {submittedProofPreview.manifestCid}
+                          </a>
+                        </div>
+                        <dl className="grid gap-1 text-muted-foreground">
+                          <div>
+                            <dt className="font-medium text-foreground">Artifact Hash</dt>
+                            <dd className="break-all font-mono">
+                              {submittedProofPreview.artifactHash}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-foreground">Manifest Hash</dt>
+                            <dd className="break-all font-mono">
+                              {submittedProofPreview.manifestHash}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-foreground">Attestation ID</dt>
+                            <dd className="break-all font-mono">
+                              {submittedProofPreview.attestationId}
+                            </dd>
+                          </div>
+                        </dl>
+                        {submittedProofPreview.warnings?.length ? (
+                          <ul className="space-y-1 text-yellow-500">
+                            {submittedProofPreview.warnings.map((warning) => (
+                              <li key={warning}>{warning}</li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </div>
                     )}
                     <TxButton
                       onClick={handleSubmitProof}

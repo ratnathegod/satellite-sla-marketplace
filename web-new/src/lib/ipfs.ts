@@ -1,48 +1,66 @@
-const IPFS_API =
-  process.env.NEXT_PUBLIC_IPFS_API_URL ||
-  process.env.NEXT_PUBLIC_IPFS_API ||
-  'http://localhost:5001'
-
 const IPFS_GATEWAY =
   process.env.NEXT_PUBLIC_IPFS_GATEWAY_URL ||
   process.env.NEXT_PUBLIC_IPFS_GATEWAY ||
   'http://localhost:8080/ipfs'
 
-// Upload JSON to IPFS
-export async function uploadJson(data: any): Promise<string> {
-  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' })
-  const formData = new FormData()
-  formData.append('file', blob, 'data.json')
-  
-  const response = await fetch(`${IPFS_API}/api/v0/add`, {
+export interface IpfsAddResult {
+  cid: string
+  gatewayUrl: string
+  name?: string
+  size?: number
+}
+
+async function addToIpfs(formData: FormData): Promise<IpfsAddResult> {
+  const response = await fetch('/api/ipfs/add', {
     method: 'POST',
     body: formData,
   })
-  
+
+  const result = await response.json().catch(() => null)
+
   if (!response.ok) {
-    throw new Error('Failed to upload JSON to IPFS')
+    const message =
+      result?.error ||
+      result?.message ||
+      'Failed to upload to local IPFS. Is the IPFS service running?'
+    throw new Error(message)
   }
-  
-  const result = await response.json()
-  return result.Hash as string
+
+  if (!result?.cid) {
+    throw new Error('IPFS upload did not return a CID')
+  }
+
+  return result as IpfsAddResult
+}
+
+// Upload JSON to IPFS
+export async function uploadJson(data: any): Promise<string> {
+  const result = await uploadJsonWithResult(data)
+  return result.cid
+}
+
+export async function uploadJsonWithResult(
+  data: any,
+  filename = 'data.json'
+): Promise<IpfsAddResult> {
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' })
+  const formData = new FormData()
+  formData.append('file', blob, filename)
+
+  return addToIpfs(formData)
 }
 
 // Upload file to IPFS
 export async function uploadFile(file: File): Promise<string> {
+  const result = await uploadFileWithResult(file)
+  return result.cid
+}
+
+export async function uploadFileWithResult(file: File): Promise<IpfsAddResult> {
   const formData = new FormData()
   formData.append('file', file)
-  
-  const response = await fetch(`${IPFS_API}/api/v0/add`, {
-    method: 'POST',
-    body: formData,
-  })
-  
-  if (!response.ok) {
-    throw new Error('Failed to upload file to IPFS')
-  }
-  
-  const result = await response.json()
-  return result.Hash as string
+
+  return addToIpfs(formData)
 }
 
 // Get IPFS gateway URL

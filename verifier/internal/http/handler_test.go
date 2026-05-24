@@ -73,7 +73,6 @@ func TestHealthHandler(t *testing.T) {
 }
 
 func TestVerifyProofHandler(t *testing.T) {
-	// Method not allowed
 	t.Run("method not allowed", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/verifyProof", nil)
 		w := httptest.NewRecorder()
@@ -83,9 +82,37 @@ func TestVerifyProofHandler(t *testing.T) {
 		}
 	})
 
-	// Happy path
-	t.Run("happy path", func(t *testing.T) {
-		body := bytes.NewBufferString(`{"artifactCid":"QmA","manifestCid":"QmB","artifactHash":"0xabc","manifestHash":"0xdef","taskId":"1"}`)
+	t.Run("malformed json", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/verifyProof", bytes.NewBufferString(`{bad json`))
+		w := httptest.NewRecorder()
+		VerifyProofHandler(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("missing required fields", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/verifyProof", bytes.NewBufferString(`{"taskId":"1"}`))
+		w := httptest.NewRecorder()
+		VerifyProofHandler(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("valid request returns deterministic bytes32 fields", func(t *testing.T) {
+		body := bytes.NewBufferString(`{
+			"taskId":"1",
+			"proofCid":"bafyproof",
+			"manifestCid":"bafymanifest",
+			"operator":"0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+			"requester":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+			"proofFileName":"scene.tif",
+			"proofFileSize":1234,
+			"proofFileType":"image/tiff",
+			"createdAt":"2026-05-24T00:00:00.000Z",
+			"verifierMode":"deterministic-demo"
+		}`)
 		req := httptest.NewRequest(http.MethodPost, "/verifyProof", body)
 		w := httptest.NewRecorder()
 		VerifyProofHandler(w, req)
@@ -96,8 +123,59 @@ func TestVerifyProofHandler(t *testing.T) {
 		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if !resp.Valid || resp.AttestationID == "" {
+		if !resp.Valid {
 			t.Fatalf("unexpected resp: %+v", resp)
 		}
+		if resp.Mode != verifierMode {
+			t.Fatalf("expected mode %s, got %s", verifierMode, resp.Mode)
+		}
+		assertBytes32(t, "artifactHash", resp.ArtifactHash)
+		assertBytes32(t, "manifestHash", resp.ManifestHash)
+		assertBytes32(t, "attestationId", resp.AttestationID)
+		if resp.ProofHash != resp.ArtifactHash {
+			t.Fatalf("proofHash alias mismatch")
+		}
+		if resp.ResultHash != resp.ManifestHash {
+			t.Fatalf("resultHash alias mismatch")
+		}
+		if resp.AttestationHash != resp.AttestationID {
+			t.Fatalf("attestationHash alias mismatch")
+		}
 	})
+
+	t.Run("same request returns same hashes", func(t *testing.T) {
+		payload := `{"taskId":"7","proofCid":"bafyproof","manifestCid":"bafymanifest","proofFileSize":9}`
+		first := verifyForTest(t, payload)
+		second := verifyForTest(t, payload)
+		if first.ArtifactHash != second.ArtifactHash ||
+			first.ManifestHash != second.ManifestHash ||
+			first.AttestationID != second.AttestationID {
+			t.Fatalf("expected deterministic response, got %+v and %+v", first, second)
+		}
+	})
+}
+
+func verifyForTest(t *testing.T, payload string) VerifyResponse {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/verifyProof", bytes.NewBufferString(payload))
+	w := httptest.NewRecorder()
+	VerifyProofHandler(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp VerifyResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	return resp
+}
+
+func assertBytes32(t *testing.T, name string, value string) {
+	t.Helper()
+	if !bytes32Pattern.MatchString(value) {
+		t.Fatalf("%s is not bytes32: %s", name, value)
+	}
+	if value == "0x0000000000000000000000000000000000000000000000000000000000000000" {
+		t.Fatalf("%s must be nonzero", name)
+	}
 }

@@ -60,6 +60,8 @@ NEXT_PUBLIC_CHAIN_ID=31337
 NEXT_PUBLIC_RPC_URL=http://localhost:8545
 NEXT_PUBLIC_VERIFIER_URL=http://localhost:8091
 VERIFIER_URL=http://localhost:8091
+IPFS_API_URL=http://localhost:5001
+IPFS_GATEWAY_URL=http://localhost:8080/ipfs
 NEXT_PUBLIC_IPFS_API_URL=http://localhost:5001
 NEXT_PUBLIC_IPFS_GATEWAY_URL=http://localhost:8080/ipfs
 NEXT_PUBLIC_WALLET_CONNECT_ID=local-demo
@@ -92,11 +94,26 @@ The deploy script also seeds the first two default Anvil accounts with demo `SAT
 5. Create an SLA task from `/new-task`; metadata is uploaded to local IPFS and its CID is stored in the task reference.
 6. Fund the task with the local MockERC20 token.
 7. Switch to the operator account and accept the funded task.
-8. Submit proof from the task detail page; the UI uploads proof data and calls the local verifier stub through `/api/verifyProof`.
+8. Submit proof from the task detail page; the UI uploads the proof file and proof manifest to local IPFS through `/api/ipfs/add`, then calls the local verifier stub through `/api/verifyProof`.
 9. As requester, release payment or raise a dispute while the submitted proof dispute window is open.
 10. As contract owner, resolve disputed tasks.
 11. Requesters can cancel Created or Funded tasks only after the task deadline has passed.
 12. View task lifecycle events at `/events`.
+
+## Proof Flow
+
+Proof submission is deterministic demo plumbing, not real satellite verification:
+
+1. The operator selects a proof file on the task detail page.
+2. The browser sends the file to the Next.js IPFS proxy route at `/api/ipfs/add`.
+3. The proxy uploads to the local Kubo API and returns a proof CID plus gateway URL.
+4. The frontend creates a simple manifest containing task ID, proof file name/size/type, proof CID, requester, operator, timestamp, and `verifierMode: "deterministic-demo"`.
+5. The manifest is uploaded to IPFS through the same proxy route.
+6. The frontend calls `/api/verifyProof` with the proof CID, manifest CID, task ID, requester/operator, and file metadata.
+7. The Go verifier returns deterministic nonzero `bytes32` values: `artifactHash`, `manifestHash`, and `attestationId`.
+8. The frontend validates those values and calls `submitProof(taskId, artifactHash, manifestHash, attestationId)`.
+
+Only the three hashes are stored on-chain. The proof and manifest CIDs are local demo artifacts and are not persisted by a database.
 
 ## Known Limitations
 
@@ -150,11 +167,27 @@ git submodule update --init --recursive
 
 ### IPFS upload or CORS issue
 
-The Docker IPFS service configures CORS for `localhost:3000` and `127.0.0.1:3000`. If uploads fail, restart the IPFS service:
+Proof uploads normally go through the Next.js proxy route, which avoids direct browser-to-Kubo CORS problems. If uploads fail, first confirm IPFS is running and restart the service:
 
 ```bash
 docker compose -f infra/docker/docker-compose.dev.yml restart ipfs
 ```
+
+If `web-new` runs outside Docker, make sure `IPFS_API_URL` or `NEXT_PUBLIC_IPFS_API_URL` points to `http://localhost:5001`.
+
+### Verifier unavailable
+
+Check the verifier health endpoint:
+
+```bash
+curl http://localhost:8091/healthz
+```
+
+The proof flow expects `/api/verifyProof` to reach `http://localhost:8091/verifyProof` outside Docker, or `http://verifier:8091/verifyProof` from the Docker web service.
+
+### Invalid bytes32 or transaction revert
+
+The verifier response must include nonzero 32-byte hex strings for `artifactHash`, `manifestHash`, and `attestationId`. If the transaction reverts, confirm the connected wallet is the designated operator, the task is `Accepted`, and the proof deadline has not passed.
 
 ### IndexedDB build warnings
 
