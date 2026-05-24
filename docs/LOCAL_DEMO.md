@@ -93,15 +93,17 @@ The deploy script also seeds the first two default Anvil accounts with demo `SAT
 6. Fund the task with the local MockERC20 token.
 7. Switch to the operator account and accept the funded task.
 8. Submit proof from the task detail page; the UI uploads proof data and calls the local verifier stub through `/api/verifyProof`.
-9. Use release, dispute, resolve, and cancel flows with care; UI semantics still need a protocol alignment pass.
-10. View task lifecycle events at `/events`.
+9. As requester, release payment or raise a dispute while the submitted proof dispute window is open.
+10. As contract owner, resolve disputed tasks.
+11. Requesters can cancel Created or Funded tasks only after the task deadline has passed.
+12. View task lifecycle events at `/events`.
 
 ## Known Limitations
 
 - The verifier is a deterministic local stub, not real proof verification.
 - IPFS is local/dev only.
 - There is no production event indexer.
-- Release, resolve, and cancel UI behavior still needs alignment with contract semantics.
+- Release, dispute, resolve, and cancel controls follow the current contract semantics, but the UX still has limited automated test coverage.
 - The frontend may show wallet or IndexedDB warnings during server/static rendering.
 - The contracts and app have not been security audited.
 

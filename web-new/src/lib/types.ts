@@ -74,7 +74,17 @@ export interface TaskWithMetadata extends Task {
 /**
  * User role relative to a task
  */
-export type TaskRole = 'requester' | 'operator' | 'none'
+export type TaskRole = 'requester' | 'operator' | 'owner' | 'none'
+
+export type RequiredTaskRole = 'requester' | 'operator' | 'owner' | 'none'
+
+export interface TaskActionAvailability {
+  canExecute: boolean
+  label: string
+  description: string
+  requiredRole: RequiredTaskRole
+  disabledReason?: string
+}
 
 /**
  * Available actions for a task based on status and role
@@ -87,6 +97,14 @@ export interface TaskActions {
   canRelease: boolean
   canDispute: boolean
   canResolve: boolean
+  fund: TaskActionAvailability
+  cancel: TaskActionAvailability
+  accept: TaskActionAvailability
+  submitProof: TaskActionAvailability
+  release: TaskActionAvailability
+  dispute: TaskActionAvailability
+  resolve: TaskActionAvailability
+  statusMessage: string
 }
 
 /**

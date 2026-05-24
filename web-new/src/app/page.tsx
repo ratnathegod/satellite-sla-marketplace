@@ -15,7 +15,7 @@ interface ContractData {
   chainId: number
   escrowAddress: AddressType | null
   owner: AddressType | null
-  taskCount: number
+  totalTasks: number
   loading: boolean
 }
 
@@ -24,7 +24,7 @@ export default function Home() {
     chainId: 0,
     escrowAddress: null,
     owner: null,
-    taskCount: 0,
+    totalTasks: 0,
     loading: true,
   })
 
@@ -43,7 +43,7 @@ export default function Home() {
           chainId,
           escrowAddress,
           owner: owner as AddressType,
-          taskCount: Number(nextTaskId),
+          totalTasks: Number(nextTaskId),
           loading: false,
         })
       } catch (error) {
@@ -115,7 +115,7 @@ export default function Home() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-12">
           <StatCard
             title="Total Tasks"
-            value={data.taskCount}
+            value={data.totalTasks}
             icon={FileText}
             loading={data.loading}
           />

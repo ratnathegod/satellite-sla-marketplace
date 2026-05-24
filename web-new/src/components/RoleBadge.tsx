@@ -3,11 +3,23 @@
 interface RoleBadgeProps {
   isRequester?: boolean
   isOperator?: boolean
+  isOwner?: boolean
   className?: string
 }
 
-export function RoleBadge({ isRequester, isOperator, className = '' }: RoleBadgeProps) {
-  if (!isRequester && !isOperator) return null
+export function RoleBadge({
+  isRequester,
+  isOperator,
+  isOwner,
+  className = '',
+}: RoleBadgeProps) {
+  if (!isRequester && !isOperator && !isOwner) return null
+
+  const labels = [
+    isRequester ? 'Requester' : null,
+    isOperator ? 'Operator' : null,
+    isOwner ? 'Contract owner' : null,
+  ].filter(Boolean)
 
   return (
     <span
@@ -15,7 +27,7 @@ export function RoleBadge({ isRequester, isOperator, className = '' }: RoleBadge
         isRequester ? 'bg-blue-500/10 text-blue-500' : 'bg-green-500/10 text-green-500'
       } ${className}`}
     >
-      {isRequester ? '👤 You are the requester' : '🛠️ You are the operator'}
+      You are: {labels.join(', ')}
     </span>
   )
 }

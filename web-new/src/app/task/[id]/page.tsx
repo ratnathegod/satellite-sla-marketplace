@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAccount, useWalletClient } from 'wagmi'
 import { keccak256, stringToBytes } from 'viem'
@@ -17,7 +17,6 @@ import {
   CheckCircle,
   XCircle,
   Upload,
-  ExternalLink,
 } from 'lucide-react'
 import { StatusBadge } from '@/components/StatusBadge'
 import { RoleBadge } from '@/components/RoleBadge'
@@ -29,19 +28,18 @@ import { useTask, useTaskRole, useTaskActions, useContractEvents } from '@/lib/h
 import { getEscrowContract, getMockERC20Contract } from '@/lib/contracts'
 import { uploadFile, uploadJson, makeGatewayUrl } from '@/lib/ipfs'
 import { formatTokenAmount, formatDate, shortenAddress } from '@/lib/format'
-import { TaskStatus, TaskStatusLabel } from '@/lib/types'
+import { TaskStatus } from '@/lib/types'
 
 export default function TaskDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const taskId = params.id as string
-  const { address, isConnected } = useAccount()
+  const { isConnected } = useAccount()
   const { data: walletClient } = useWalletClient()
 
   // Data hooks
   const { task, loading, error, refresh } = useTask(taskId)
-  const { isRequester, isOperator, role } = useTaskRole(task)
-  const actions = useTaskActions(task, role)
+  const { isRequester, isOperator, isOwner, role } = useTaskRole(task)
+  const actions = useTaskActions(task, role, isOwner)
   const { events } = useContractEvents({ taskId })
 
   // Local state
@@ -238,7 +236,11 @@ export default function TaskDetailPage() {
             <StatusBadge status={task.status} />
           </div>
           <div className="flex items-center gap-3">
-            <RoleBadge isRequester={isRequester} isOperator={isOperator} />
+            <RoleBadge
+              isRequester={isRequester}
+              isOperator={isOperator}
+              isOwner={isOwner}
+            />
           </div>
         </div>
         <button
@@ -384,15 +386,20 @@ export default function TaskDetailPage() {
                 deadline={task.submittedAt + task.disputeWindow}
                 label="Dispute Window"
               />
-              {actions.isDisputeWindowActive ? (
+              {actions.disputeWindowLoading ? (
+                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Checking dispute window
+                </p>
+              ) : actions.isDisputeWindowActive ? (
                 <p className="text-xs text-yellow-500 mt-2 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  Requester can dispute during this window
+                  Requester can release or dispute during this window
                 </p>
               ) : (
-                <p className="text-xs text-green-500 mt-2 flex items-center gap-1">
+                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                   <CheckCircle className="h-3 w-3" />
-                  Dispute window closed - anyone can release
+                  Dispute window closed; contract no longer allows release or dispute
                 </p>
               )}
             </div>
@@ -408,11 +415,15 @@ export default function TaskDetailPage() {
               </p>
             ) : (
               <div className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  {actions.statusMessage}
+                </p>
+
                 {/* Fund Task */}
                 {actions.canFund && (
                   <TxButton onClick={handleFundTask} className="w-full">
                     <Coins className="h-4 w-4 mr-2" />
-                    Fund Task ({formatTokenAmount(task.amount)} TEST)
+                    {actions.fund.label} ({formatTokenAmount(task.amount)} TEST)
                   </TxButton>
                 )}
 
@@ -424,7 +435,7 @@ export default function TaskDetailPage() {
                     className="w-full"
                   >
                     <XCircle className="h-4 w-4 mr-2" />
-                    Cancel Task
+                    {actions.cancel.label}
                   </TxButton>
                 )}
 
@@ -432,7 +443,7 @@ export default function TaskDetailPage() {
                 {actions.canAccept && (
                   <TxButton onClick={handleAcceptTask} className="w-full">
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    Accept Task
+                    {actions.accept.label}
                     {task.bond > 0n && ` (Stake ${formatTokenAmount(task.bond)} TEST)`}
                   </TxButton>
                 )}
@@ -456,7 +467,7 @@ export default function TaskDetailPage() {
                       className="w-full"
                     >
                       <Upload className="h-4 w-4 mr-2" />
-                      Submit Proof
+                      {actions.submitProof.label}
                     </TxButton>
                   </div>
                 )}
@@ -465,7 +476,7 @@ export default function TaskDetailPage() {
                 {actions.canRelease && (
                   <TxButton onClick={handleRelease} className="w-full">
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    Release Payment
+                    {actions.release.label}
                   </TxButton>
                 )}
 
@@ -477,7 +488,7 @@ export default function TaskDetailPage() {
                     className="w-full"
                   >
                     <AlertTriangle className="h-4 w-4 mr-2" />
-                    Raise Dispute
+                    {actions.dispute.label}
                   </TxButton>
                 )}
 
@@ -485,7 +496,7 @@ export default function TaskDetailPage() {
                 {actions.canResolve && (
                   <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      As contract owner, resolve this dispute:
+                      {actions.resolve.description}
                     </p>
                     <div className="flex gap-2">
                       <button
@@ -514,7 +525,7 @@ export default function TaskDetailPage() {
                       disabled={operatorWins === null}
                       className="w-full"
                     >
-                      Resolve Dispute
+                      {actions.resolve.label}
                     </TxButton>
                   </div>
                 )}
@@ -528,13 +539,7 @@ export default function TaskDetailPage() {
                   !actions.canDispute &&
                   !actions.canResolve && (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      {task.status === TaskStatus.Released
-                        ? '✅ Task completed and payment released'
-                        : task.status === TaskStatus.Cancelled
-                        ? '❌ Task was cancelled'
-                        : task.status === TaskStatus.Resolved
-                        ? '⚖️ Dispute resolved'
-                        : 'No actions available for your role'}
+                      {actions.statusMessage}
                     </p>
                   )}
               </div>

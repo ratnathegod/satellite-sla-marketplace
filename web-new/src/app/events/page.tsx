@@ -16,7 +16,7 @@ const eventColors: Record<string, string> = {
   ProofSubmitted: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20',
   TaskReleased: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
   TaskDisputed: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
-  DisputeResolved: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
+  TaskResolved: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
   TaskCancelled: 'bg-red-500/10 text-red-500 border-red-500/20',
   Unknown: 'bg-gray-500/10 text-gray-500 border-gray-500/20',
 }
@@ -30,7 +30,7 @@ const eventTypes = [
   'ProofSubmitted',
   'TaskReleased',
   'TaskDisputed',
-  'DisputeResolved',
+  'TaskResolved',
   'TaskCancelled',
 ]
 
