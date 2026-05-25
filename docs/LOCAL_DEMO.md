@@ -15,6 +15,7 @@ The older `web/` app and nested `satellite-sla-marketplace/` copy are kept for r
 - Docker Desktop
 - Foundry (`forge`, `cast`, `anvil`)
 - Go 1.22+
+- ripgrep (`rg`)
 - Browser wallet extension such as MetaMask or Rabby
 
 ## Quickstart
@@ -32,6 +33,8 @@ http://localhost:3000
 ```
 
 `make dev` starts Anvil, local IPFS, the Go verifier, and the canonical `web-new` app. Run `make deploy-local` after Anvil is healthy so the frontend has fresh ABI and address files.
+
+`make install` initializes the canonical Foundry dependency submodule at `contracts/lib/openzeppelin-contracts`, including its recursive `forge-std` dependency, then installs pnpm workspace dependencies for `web-new`.
 
 ## Ports
 
@@ -124,6 +127,26 @@ Only the three hashes are stored on-chain. The proof and manifest CIDs are local
 - The frontend may show wallet or IndexedDB warnings during server/static rendering.
 - The contracts and app have not been security audited.
 
+## Tests and CI
+
+Run the canonical regression checks locally with:
+
+```bash
+make test
+```
+
+The target runs:
+
+- `cd contracts && forge build`
+- `cd contracts && forge test`
+- `cd verifier && go test ./...`
+- `pnpm -C web-new test`
+- `pnpm -C web-new build`
+- `docker compose -f infra/docker/docker-compose.dev.yml config`
+- a stale API/name scan against `web-new`
+
+GitHub Actions uses the same canonical paths: `contracts/`, `verifier/`, `web-new/`, and `infra/docker/docker-compose.dev.yml`. The older `web/` app and nested duplicate repo are not part of CI.
+
 ## Troubleshooting
 
 ### Port 5001 conflict
@@ -162,7 +185,7 @@ Switch your wallet to chain ID `31337` and RPC `http://localhost:8545`.
 If `forge build` cannot resolve dependencies, install the contract dependency:
 
 ```bash
-git submodule update --init --recursive
+git submodule update --init --recursive contracts/lib/openzeppelin-contracts
 ```
 
 ### IPFS upload or CORS issue

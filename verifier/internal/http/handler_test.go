@@ -153,6 +153,16 @@ func TestVerifyProofHandler(t *testing.T) {
 			t.Fatalf("expected deterministic response, got %+v and %+v", first, second)
 		}
 	})
+
+	t.Run("changed request changes hashes", func(t *testing.T) {
+		first := verifyForTest(t, `{"taskId":"7","proofCid":"bafyproof-a","manifestCid":"bafymanifest","proofFileSize":9}`)
+		second := verifyForTest(t, `{"taskId":"7","proofCid":"bafyproof-b","manifestCid":"bafymanifest","proofFileSize":9}`)
+		if first.ArtifactHash == second.ArtifactHash ||
+			first.ManifestHash == second.ManifestHash ||
+			first.AttestationID == second.AttestationID {
+			t.Fatalf("expected changed request to change hashes, got %+v and %+v", first, second)
+		}
+	})
 }
 
 func verifyForTest(t *testing.T, payload string) VerifyResponse {

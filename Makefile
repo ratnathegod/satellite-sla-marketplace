@@ -15,7 +15,7 @@ help:
 	@echo "  deploy-local - Deploy Escrow + MockERC20 to local anvil and export addresses"
 	@echo "  export-abi   - Build contracts and export ABIs to web-new/public/abi"
 	@echo "  web          - Run canonical web-new locally outside Docker on port 3000"
-	@echo "  test         - Run contracts, verifier, and web-new build checks"
+	@echo "  test         - Run canonical contracts, verifier, web-new, Docker config, and stale-name checks"
 	@echo "  clean        - Stop services and clean generated build artifacts"
 	@echo "  help         - Show this help message"
 
@@ -26,8 +26,9 @@ install:
 	@command -v forge >/dev/null 2>&1 || { echo "Foundry is required. Install from https://book.getfoundry.sh/"; exit 1; }
 	@command -v go >/dev/null 2>&1 || { echo "Go 1.22+ is required."; exit 1; }
 	@command -v docker >/dev/null 2>&1 || { echo "Docker is required."; exit 1; }
-	@echo "Initializing Foundry submodules..."
-	@git submodule update --init --recursive
+	@command -v rg >/dev/null 2>&1 || { echo "ripgrep is required for stale API scans."; exit 1; }
+	@echo "Initializing Foundry contract dependencies..."
+	@git submodule update --init --recursive contracts/lib/openzeppelin-contracts
 	@test -f contracts/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol || { echo "Missing OpenZeppelin contracts after submodule init."; exit 1; }
 	@test -f contracts/lib/openzeppelin-contracts/lib/forge-std/src/Test.sol || { echo "Missing forge-std dependency after recursive submodule init."; exit 1; }
 	@echo "Installing pnpm workspace dependencies..."
@@ -64,12 +65,23 @@ export-abi:
 	@cd contracts && ./export-abi.sh
 
 test:
+	@echo "Building contracts..."
+	@cd contracts && forge build
 	@echo "Running contract tests..."
-	@cd contracts && forge test
+	@cd contracts && forge test --offline
 	@echo "Running verifier tests..."
 	@cd verifier && go test ./...
+	@echo "Running canonical web-new tests..."
+	@pnpm -C web-new test
 	@echo "Building canonical web-new..."
 	@pnpm -C web-new build
+	@echo "Validating Docker Compose config..."
+	@docker compose -f $(COMPOSE_FILE) config >/dev/null
+	@echo "Scanning canonical web-new for stale contract/API names..."
+	@if rg "releasePayment|disputeTask|taskCount|getTaskProof|DisputeResolved" web-new; then \
+		echo "Stale contract/API names found in web-new."; \
+		exit 1; \
+	fi
 	@echo "All checks passed."
 
 clean:

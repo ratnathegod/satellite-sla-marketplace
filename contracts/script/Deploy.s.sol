@@ -22,8 +22,8 @@ contract DeployScript is Script {
     console.log("Total supply:", token.totalSupply());
 
     // Seed the first two default Anvil accounts for a requester/operator demo.
-    address demoRequester = address(0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266);
-    address demoOperator = address(0x70997970c51812dc3a010c7d01b50e0d17dc79c8);
+    address demoRequester = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
+    address demoOperator = address(0x70997970C51812dc3A010C7d01b50e0d17dc79C8);
     uint256 demoMintAmount = 10_000 ether;
     token.mint(demoRequester, demoMintAmount);
     token.mint(demoOperator, demoMintAmount);

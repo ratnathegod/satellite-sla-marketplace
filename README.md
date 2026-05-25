@@ -53,4 +53,4 @@ make dev-down
 
 ## Project Status
 
-The app is demo-oriented. The verifier is still a deterministic stub, IPFS is local/dev only, release/resolve/cancel UI semantics still need a protocol alignment pass, and the system has not been security audited.
+The app is demo-oriented. CI targets the canonical `contracts/`, `verifier/`, `web-new/`, and Docker Compose stack. The verifier is still a deterministic stub, IPFS is local/dev only, there is no production indexer, and the system has not been security audited.
