@@ -48,6 +48,8 @@ make help
 make export-abi
 make deploy-local
 make test
+make smoke
+make smoke-live
 make dev-down
 ```
 

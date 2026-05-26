@@ -138,14 +138,31 @@ make test
 The target runs:
 
 - `cd contracts && forge build`
-- `cd contracts && forge test`
+- `cd contracts && forge test --offline`
 - `cd verifier && go test ./...`
 - `pnpm -C web-new test`
+- `pnpm -C web-new e2e`
 - `pnpm -C web-new build`
 - `docker compose -f infra/docker/docker-compose.dev.yml config`
 - a stale API/name scan against `web-new`
 
+The Playwright browser smoke tests render the canonical routes and exercise the verifier/IPFS API route behavior without automating a browser wallet. Browser wallet flows are still manual.
+
 GitHub Actions uses the same canonical paths: `contracts/`, `verifier/`, `web-new/`, and `infra/docker/docker-compose.dev.yml`. The older `web/` app and nested duplicate repo are not part of CI.
+
+For local demo smoke checks:
+
+```bash
+make smoke
+```
+
+This static mode validates canonical demo files, ABI/address JSON, and Docker Compose config. After `make dev` and `make deploy-local`, run:
+
+```bash
+make smoke-live
+```
+
+Live mode checks the frontend, verifier, IPFS API, deterministic verifier response shape, and deployed bytecode when `cast` is available.
 
 ## Troubleshooting
 

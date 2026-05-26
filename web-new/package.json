@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start -p 3000",
     "test": "vitest run",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:install": "playwright install chromium",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
@@ -30,6 +33,7 @@
     "wagmi": "^2.12.29"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/node": "^20.19.14",
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",

@@ -2,7 +2,7 @@ COMPOSE_FILE := infra/docker/docker-compose.dev.yml
 ANVIL_RPC_URL := http://localhost:8545
 ANVIL_PRIVATE_KEY := 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
-.PHONY: help install setup dev dev-down dev-stop dev-logs dev-restart web deploy-local export-abi test clean
+.PHONY: help install setup dev dev-down dev-stop dev-logs dev-restart web deploy-local export-abi test smoke smoke-live clean
 
 help:
 	@echo "Satellite SLA Marketplace - Development Commands"
@@ -16,6 +16,8 @@ help:
 	@echo "  export-abi   - Build contracts and export ABIs to web-new/public/abi"
 	@echo "  web          - Run canonical web-new locally outside Docker on port 3000"
 	@echo "  test         - Run canonical contracts, verifier, web-new, Docker config, and stale-name checks"
+	@echo "  smoke        - Run static local demo smoke checks"
+	@echo "  smoke-live   - Check a running local demo after make dev and make deploy-local"
 	@echo "  clean        - Stop services and clean generated build artifacts"
 	@echo "  help         - Show this help message"
 
@@ -73,6 +75,8 @@ test:
 	@cd verifier && go test ./...
 	@echo "Running canonical web-new tests..."
 	@pnpm -C web-new test
+	@echo "Running canonical web-new browser smoke tests..."
+	@pnpm -C web-new e2e
 	@echo "Building canonical web-new..."
 	@pnpm -C web-new build
 	@echo "Validating Docker Compose config..."
@@ -83,6 +87,12 @@ test:
 		exit 1; \
 	fi
 	@echo "All checks passed."
+
+smoke:
+	@scripts/check-local-demo.sh --static
+
+smoke-live:
+	@scripts/check-local-demo.sh --live
 
 clean:
 	@echo "Cleaning local demo artifacts..."

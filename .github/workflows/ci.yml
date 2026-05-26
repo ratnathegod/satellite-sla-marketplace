@@ -77,8 +77,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Playwright Chromium
+        run: pnpm -C web-new exec playwright install --with-deps chromium
+
       - name: Frontend tests
         run: pnpm -C web-new test
+
+      - name: Browser smoke tests
+        run: pnpm -C web-new e2e
 
       - name: Frontend build
         run: pnpm -C web-new build
@@ -95,11 +101,16 @@ jobs:
           ! rg "releasePayment|disputeTask|taskCount|getTaskProof|DisputeResolved" web-new
 
   docker-config:
-    name: Docker Compose Config
+    name: Local Demo Smoke
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate canonical Docker Compose file
-        run: docker compose -f infra/docker/docker-compose.dev.yml config
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Static local demo smoke
+        run: scripts/check-local-demo.sh --static
